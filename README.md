@@ -21,8 +21,8 @@ The console will show any errors in your sketch.
 
 | File | Source |
 |------|--------|
-| `assets/images/sushi.png` | By KOTAKE CREATE [1] |
-| `assets/images/sushi_kitchen.jpg` | By KOTAKE CREATE [2] |
+| `assets/images/sushi.png` | By Clker-Free-Vector-Images [1] |
+| `assets/images/sushi_kitchen.jpg` | By Pinit Niamsuwan [2] |
 
 
 ## References
