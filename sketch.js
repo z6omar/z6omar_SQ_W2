@@ -1,53 +1,33 @@
-// ============================================================
-// PLATFORMER WITH BACKGROUND, PLAYER IMAGE, AND CRUMBLING PLATFORM
-// ============================================================
+let bgImg;
+let playerImg;
 
-// ------------------------------------------------------------
-// ASSETS
-// ------------------------------------------------------------
-let bgImg;        // background image placeholder
-let playerImg;    // player image placeholder
-
-function preload() {
-  bgImg = loadImage("sushi.png");
-  playerImg = loadImage("sushi_kitchen.jpg");
-}
-
-// ------------------------------------------------------------
-// PLATFORMS ARRAY
-// Added: type: "normal" or "crumble"
-// Added: state tracking for crumble platform
-// ------------------------------------------------------------
 let platforms = [
-  { x: 0,   y: 410, w: 800, h: 40, type: "normal" }, // ground
-  { x: 100, y: 300, w: 150, h: 16, type: "normal" },
-  { x: 350, y: 240, w: 150, h: 16, type: "normal" },
-  { x: 600, y: 180, w: 120, h: 16, type: "normal" },
+  { x: 0,   y: 410, w: 800, h: 40 },
+  { x: 60,  y: 330, w: 130, h: 16 },
+  { x: 250, y: 275, w: 140, h: 16 },
+  { x: 470, y: 220, w: 130, h: 16 },
+  { x: 620, y: 150, w: 120, h: 16 },
+  { x: 130, y: 180, w: 110, h: 16 },
 
-  // ⭐ Special crumbling platform
+  // custom falling platform
   {
-    x: 250,
-    y: 150,
-    w: 140,
+    x: 360,
+    y: 340,
+    w: 130,
     h: 16,
-    type: "crumble",
-    timer: 0,
-    shaking: false,
-    falling: false,
-    originalY: 150
+    falling: true,
+    activated: false,
+    startTime: 0,
+    fallSpeed: 0
   }
 ];
 
-// ------------------------------------------------------------
-// PLAYER OBJECT
-// ------------------------------------------------------------
 let player = {
   x: 100,
   y: 100,
   vx: 0,
   vy: 0,
-  w: 40,   // width for image
-  h: 40,   // height for image
+  r: 20,
   speed: 0.55,
   maxSpeed: 4.5,
   jumpForce: -12,
@@ -56,38 +36,39 @@ let player = {
 };
 
 const GRAVITY = 0.6;
+const PLATFORM_COLOR = [255, 160, 50];
 
-// ============================================================
-// setup()
-// ============================================================
-function setup() {
-  createCanvas(800, 450);
-  player.y = platforms[0].y - player.h / 2;
+function preload() {
+  bgImg = loadImage("assets/images/sushi_kitchen.jpg");   // placeholder background image
+  playerImg = loadImage("assets/images/sushi.png"); // placeholder character image
 }
 
-// ============================================================
-// draw()
-// ============================================================
+function setup() {
+  createCanvas(800, 450);
+  player.y = platforms[0].y - player.r;
+}
+
 function draw() {
-  // Draw background image
   image(bgImg, 0, 0, width, height);
 
   handleInput();
   applyPhysics();
+  updateFallingPlatforms();
   resolvePlatformCollisions();
-  updateCrumblePlatform();
 
   drawPlatforms();
   drawPlayer();
   drawHUD();
 }
 
-// ------------------------------------------------------------
-// handleInput()
-// ------------------------------------------------------------
 function handleInput() {
-  if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) player.vx -= player.speed;
-  if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) player.vx += player.speed;
+  if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) {
+    player.vx -= player.speed;
+  }
+
+  if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) {
+    player.vx += player.speed;
+  }
 
   player.vx = constrain(player.vx, -player.maxSpeed, player.maxSpeed);
 
@@ -106,130 +87,103 @@ function handleInput() {
   }
 }
 
-// ------------------------------------------------------------
-// applyPhysics()
-// ------------------------------------------------------------
 function applyPhysics() {
   player.vy += GRAVITY;
+
   player.x += player.vx;
   player.y += player.vy;
 
-  player.x = constrain(player.x, player.w / 2, width - player.w / 2);
+  player.x = constrain(player.x, player.r, width - player.r);
 
-  if (player.y > height + 100) resetPlayer();
+  if (player.y > height + 100) {
+    player.x = 100;
+    player.y = platforms[0].y - player.r;
+    player.vx = 0;
+    player.vy = 0;
+  }
 
   player.onGround = false;
 }
 
-// ------------------------------------------------------------
-// resolvePlatformCollisions()
-// ------------------------------------------------------------
 function resolvePlatformCollisions() {
-  for (let p of platforms) {
-    if (p.falling) continue; // falling platforms can't be stood on
+  for (let i = 0; i < platforms.length; i++) {
+    let p = platforms[i];
 
-    let playerLeft = player.x - player.w / 2;
-    let playerRight = player.x + player.w / 2;
-    let playerBottom = player.y + player.h / 2;
+    let playerLeft = player.x - player.r;
+    let playerRight = player.x + player.r;
+    let playerBottom = player.y + player.r;
 
-    let overlapsHoriz = playerRight > p.x && playerLeft < p.x + p.w;
+    let platLeft = p.x;
+    let platRight = p.x + p.w;
+    let platTop = p.y;
+
+    let overlapsHorizontally = playerRight > platLeft && playerLeft < platRight;
+
     let landingOnTop =
       player.vy >= 0 &&
-      playerBottom >= p.y &&
-      playerBottom <= p.y + 20;
+      playerBottom >= platTop &&
+      playerBottom <= platTop + 20;
 
-    if (overlapsHoriz && landingOnTop) {
-      player.y = p.y - player.h / 2;
+    if (overlapsHorizontally && landingOnTop) {
+      player.y = platTop - player.r;
       player.vy = 0;
       player.onGround = true;
 
-      if (p.type === "crumble") {
-        if (!p.shaking && !p.falling) {
-          p.shaking = true;
-          p.timer = millis();
-        }
+      if (p.falling && !p.activated) {
+        p.activated = true;
+        p.startTime = millis();
       }
     }
   }
 }
 
-// ------------------------------------------------------------
-// updateCrumblePlatform()
-// Handles shaking → falling → resetting
-// ------------------------------------------------------------
-function updateCrumblePlatform() {
-  for (let p of platforms) {
-    if (p.type !== "crumble") continue;
+function updateFallingPlatforms() {
+  for (let i = 0; i < platforms.length; i++) {
+    let p = platforms[i];
 
-    if (p.shaking && !p.falling) {
-      // Shake for 3 seconds
-      if (millis() - p.timer < 3000) {
-        p.x += random(-2, 2);
-      } else {
-        p.falling = true;
-      }
-    }
+    if (p.falling && p.activated) {
+      let timeStanding = millis() - p.startTime;
 
-    if (p.falling) {
-      p.y += 5; // fall speed
-      if (p.y > height + 50) {
-        // Reset platform
-        p.y = p.originalY;
-        p.falling = false;
-        p.shaking = false;
+      if (timeStanding > 3000) {
+        p.fallSpeed += 0.4;
+        p.y += p.fallSpeed;
       }
     }
   }
 }
 
-// ------------------------------------------------------------
-// drawPlatforms()
-// ------------------------------------------------------------
 function drawPlatforms() {
   noStroke();
 
-  for (let p of platforms) {
-    if (p.type === "crumble") {
-      fill(255, 60, 60); // red
+  for (let i = 0; i < platforms.length; i++) {
+    let p = platforms[i];
+
+    let shakeX = 0;
+
+    if (p.falling && p.activated && millis() - p.startTime <= 3000) {
+      fill(255, 0, 0);
+      shakeX = random(-3, 3);
     } else {
-      fill(255, 160, 50);
+      fill(PLATFORM_COLOR[0], PLATFORM_COLOR[1], PLATFORM_COLOR[2]);
     }
-    rect(p.x, p.y, p.w, p.h, 6);
+
+    rect(p.x + shakeX, p.y, p.w, p.h, 6);
   }
 }
 
-// ------------------------------------------------------------
-// drawPlayer()
-// ------------------------------------------------------------
 function drawPlayer() {
   imageMode(CENTER);
-  image(playerImg, player.x, player.y, player.w, player.h);
+
+  // character image placeholder
+  image(playerImg, player.x, player.y, player.r * 2.5, player.r * 2.5);
+
+  imageMode(CORNER);
 }
 
-// ------------------------------------------------------------
-// drawHUD()
-// ------------------------------------------------------------
 function drawHUD() {
   fill(255);
-  textSize(14);
+  noStroke();
+  textSize(13);
+  textAlign(LEFT);
   text("Move: Arrow Keys or WASD   Jump: W or Up Arrow", 16, 24);
-}
-
-// ------------------------------------------------------------
-// resetPlayer()
-// ------------------------------------------------------------
-function resetPlayer() {
-  player.x = 100;
-  player.y = platforms[0].y - player.h / 2;
-  player.vx = 0;
-  player.vy = 0;
-
-  // Reset crumble platform
-  for (let p of platforms) {
-    if (p.type === "crumble") {
-      p.y = p.originalY;
-      p.shaking = false;
-      p.falling = false;
-    }
-  }
 }
